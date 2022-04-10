@@ -1,0 +1,301 @@
+resource "aws_s3_bucket" "central_cur_bucket" {
+  bucket = var.logBucket
+
+  tags = {
+    CreatedFor  = "CUR Logging"
+    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
+  }
+}
+
+#a little wasted but important practise
+resource "aws_s3_bucket_acl" "central_cur_bucket_acl" {
+  bucket = aws_s3_bucket.central_cur_bucket.id
+  acl    = "private"
+}
+
+{{- $once := true }}
+resource "aws_s3_bucket_policy" "central_cur_policy" {
+  bucket = aws_s3_bucket.central_cur_bucket.id
+
+  policy = jsonencode({
+    "Version": "2008-10-17",
+    "Statement": [
+      {
+        "Sid": "GetCurBucketAccessStatus",
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "billingreports.amazonaws.com"
+        },
+        "Action": [
+          "s3:GetBucketAcl",
+          "s3:GetBucketPolicy"
+        ],
+        "Resource": "${aws_s3_bucket.central_cur_bucket.arn}"
+      },
+      {
+        "Sid": "PutCurObjects",
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "billingreports.amazonaws.com"
+        },
+        "Action": [
+          "s3:PutObject"
+        ],
+        "Resource": "${aws_s3_bucket.central_cur_bucket.arn}/*"
+      },
+      {
+        "Sid": "CurBucketReplicateActions",
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": [
+            {{- $once = true }}
+            {{- range $profile := .members.profiles }}
+            {{- $sk := (strings.SnakeCase $profile | strings.ToLower) }}
+            {{- $reprole := (printf "%s%s" "replication_role_" $sk) }}
+              {{- if $once -}}
+                {{- $once = false -}}
+                {{print "\n"}}
+              {{- else -}}
+                {{print ",\n"}}
+              {{- end -}}
+            "${aws_iam_role.{{print $reprole}}.arn}"
+            {{- end }}
+          ]
+        },
+        "Action":[
+          "s3:ReplicateObject",
+          "s3:ReplicateDelete",
+          "s3:ReplicateTags",
+          "s3:ObjectOwnerOverrideToBucketOwner"
+        ],
+        "Resource":"${aws_s3_bucket.central_cur_bucket.arn}/*"
+      },
+      {
+        "Sid": "GetCurBucketInfo",
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": [
+            {{- $once = true }}
+            {{- range $profile := .members.profiles }}
+            {{- $sk := (strings.SnakeCase $profile | strings.ToLower) }}
+            {{- $reprole := (printf "%s%s" "replication_role_" $sk) }}
+              {{- if $once -}}
+                {{- $once = false -}}
+                {{print "\n"}}
+              {{- else -}}
+                {{print ",\n"}}
+              {{- end -}}
+            "${aws_iam_role.{{print $reprole}}.arn}"
+            {{- end }}
+          ]
+        },
+        "Action":[
+          "s3:ListBucket",
+          "s3:GetReplicationConfiguration",
+          "s3:GetObjectVersionForReplication",
+          "s3:GetObjectVersionAcl",
+          "s3:GetObjectVersionTagging",
+          "s3:GetObjectRetention",
+          "s3:GetObjectLegalHold"
+        ],
+        "Resource" : [
+            "${aws_s3_bucket.central_cur_bucket.arn}",
+            "${aws_s3_bucket.central_cur_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+
+}
+
+resource "aws_s3_bucket_versioning" "central_cur_bucket_versioning" {
+  bucket = aws_s3_bucket.central_cur_bucket.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+
+
+{{ range $value := .members.profiles }}
+{{- $sk := (strings.SnakeCase $value | strings.ToLower) }}
+{{- $prov := (printf "%s%s" $sk "_provider") }}
+{{- $curbuck := (printf "%s%s" "cur_bucket_" $sk) }}
+{{- $curacl := (printf "%s%s" "cur_acl_" $sk) }}
+{{- $curver := (printf "%s%s" "cur_versioning_" $sk) }}
+{{- $buckpol := (printf "%s%s" "cur_bucketpolicy_" $sk) }}
+{{- $reprole := (printf "%s%s" "replication_role_" $sk) }}
+{{- $reppol := (printf "%s%s" "replication_policy_" $sk) }}
+{{- $repatch := (printf "%s%s" "replication_atachment_" $sk) }}
+{{- $repid := (printf "%s%s" $sk "-cur-replication-rule") }}
+{{- $currep := (printf "%s%s" "cur_replication_" $sk) }}
+resource "aws_s3_bucket" {{ strings.Quote $curbuck }} {
+  bucket = "cur-{{ strings.ToLower $value | strings.KebabCase }}${var.curMemberPostfix}"
+
+  provider = aws.{{ print $prov }}
+
+  tags = {
+    CreatedFor  = "CUR Logging"
+    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
+  }
+}
+
+resource "aws_s3_bucket_acl" {{ strings.Quote $curacl }} {
+  provider = aws.{{ print $prov }}
+
+  bucket = aws_s3_bucket.{{ print $curbuck }}.id
+  acl    = "private"
+}
+
+resource "aws_s3_bucket_policy" {{ strings.Quote $buckpol }} {
+  provider = aws.{{ print $prov }}
+  bucket = aws_s3_bucket.{{print $curbuck}}.id
+
+  policy = jsonencode({
+    "Version": "2008-10-17",
+    "Statement": [
+      {
+        "Sid": "GetCurBucketAccessStatus",
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "billingreports.amazonaws.com"
+        },
+        "Action": [
+          "s3:GetBucketAcl",
+          "s3:GetBucketPolicy"
+        ],
+        "Resource": "${aws_s3_bucket.{{print $curbuck}}.arn}"
+      },
+      {
+        "Sid": "PutCurObjects",
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "billingreports.amazonaws.com"
+        },
+        "Action": [
+          "s3:PutObject"
+        ],
+        "Resource": "${aws_s3_bucket.{{print $curbuck}}.arn}/*"
+      }
+    ]
+  })
+
+}
+
+resource "aws_s3_bucket_versioning" {{ strings.Quote $curver }} {
+  provider = aws.{{ print $prov }}
+
+  bucket = aws_s3_bucket.{{ print $curbuck }}.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_iam_role" {{ strings.Quote $reprole }} {
+  name = "CurReplicationRole"
+  description = "Allows S3 to asume role for replication"
+
+  provider = aws.{{ print $prov }}
+
+  assume_role_policy = jsonencode({
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "Service": "s3.amazonaws.com"
+          },
+          "Effect": "Allow",
+          "Sid": ""
+        }
+      ]
+    })
+
+  tags = {
+    CreatedFor  = "CUR Logging Replication"
+    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
+  }
+
+}
+
+resource "aws_iam_policy" {{ strings.Quote $reppol }} {
+  name = "CurReplicationPolicy"
+  description = "Gives apropriate permisions for replication"
+
+  provider = aws.{{ print $prov }}
+
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": [
+            "s3:ListBucket",
+            "s3:GetReplicationConfiguration",
+            "s3:GetObjectVersionForReplication",
+            "s3:GetObjectVersionAcl",
+            "s3:GetObjectVersionTagging",
+            "s3:GetObjectRetention",
+            "s3:GetObjectLegalHold"
+        ],
+        "Effect": "Allow",
+        "Resource": [
+            "${aws_s3_bucket.{{ print $curbuck }}.arn}",
+            "${aws_s3_bucket.{{ print $curbuck }}.arn}/*",
+            "${aws_s3_bucket.central_cur_bucket.arn}",
+            "${aws_s3_bucket.central_cur_bucket.arn}/*"
+        ]
+      },
+      {
+        "Action": [
+            "s3:ReplicateObject",
+            "s3:ReplicateDelete",
+            "s3:ReplicateTags",
+            "s3:ObjectOwnerOverrideToBucketOwner"
+        ],
+        "Effect": "Allow",
+        "Resource": [
+            "${aws_s3_bucket.{{ print $curbuck }}.arn}/*",
+            "${aws_s3_bucket.central_cur_bucket.arn}/*"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    CreatedFor  = "CUR Logging"
+    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
+  }
+
+}
+
+resource "aws_iam_role_policy_attachment" {{ strings.Quote $repatch }} {
+  provider = aws.{{ print $prov }}
+  role       = aws_iam_role.{{print $reprole}}.name
+  policy_arn = aws_iam_policy.{{print $reppol}}.arn
+}
+
+resource "aws_s3_bucket_replication_configuration" {{ strings.Quote $currep }} {
+  provider = aws.{{ print $prov }}
+
+  # Must have bucket versioning enabled first
+  depends_on = [aws_s3_bucket_versioning.{{ print $curver }}]
+
+  role   = aws_iam_role.{{ print $reprole }}.arn
+  bucket = aws_s3_bucket.{{ print $curbuck }}.id
+
+  rule {
+    id = {{ strings.Quote $repid }}
+
+    status = "Enabled"
+
+    destination {
+      bucket        = aws_s3_bucket.central_cur_bucket.arn
+      storage_class = "STANDARD"
+      account       = var.logAccountId
+      access_control_translation {
+        owner = "Destination"
+      }
+    }
+  }
+}
+{{ end }}

@@ -1,0 +1,70 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.9"
+    }
+  }
+}
+
+provider "aws" {
+  profile = {{ strings.Quote .logprofile.profile }}
+  region  = var.region
+
+  default_tags {
+    tags = var.defaultTags
+  }
+
+  ignore_tags {
+    keys = var.defaultIgnoredTags
+  }
+}
+
+provider "aws" {
+  alias   = "log_cur"
+  profile = {{ strings.Quote .logprofile.profile }}
+  region  = "us-east-1"
+
+  default_tags {
+    tags = var.defaultTags
+  }
+
+  ignore_tags {
+    keys = var.defaultIgnoredTags
+  }
+}
+
+
+{{define "provider"}}{{ strings.ToLower . | strings.SnakeCase }}_provider{{end}}
+
+{{ range $value := .members.profiles }}
+{{ $al := (printf "%s%s" $value "_provider" | strings.ToLower | strings.SnakeCase) }}
+{{ $cural := (printf "%s%s" $al "_cur") }}
+provider "aws" {
+  alias = {{ strings.Quote $al }}
+  profile = "{{ $value }}"
+  region  = var.region
+
+  default_tags {
+    tags = var.defaultTags
+  }
+
+  ignore_tags {
+    keys = var.defaultIgnoredTags
+  }
+}
+
+provider "aws" {
+  alias   = {{ strings.Quote $cural }}
+  profile = "{{ $value }}"
+  region  = "us-east-1"
+
+  default_tags {
+    tags = var.defaultTags
+  }
+
+  ignore_tags {
+    keys = var.defaultIgnoredTags
+  }
+}
+{{ end }}

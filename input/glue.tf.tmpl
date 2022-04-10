@@ -1,0 +1,184 @@
+resource "aws_glue_catalog_database" "individual" {
+  name        = "individual-curs"
+  description = "Contains the individual account cur information as seprate tables"
+}
+
+resource "aws_glue_catalog_database" "catagories" {
+  name        = "catagory-curs"
+  description = "Contains the diffrent CUR prefixes as seprate tables"
+}
+
+resource "aws_glue_catalog_database" "global" {
+  name        = "global-curs"
+  description = "Contains all account CURs as a single table (CURs bucket name)"
+}
+
+# sadly we have to run 3 crawlers becuase I couldn't fnd a way to chain the bottom crawler (indivdual) to the top
+
+resource "aws_glue_crawler" "individual" {
+  database_name = aws_glue_catalog_database.individual.id
+  name          = "individual-cur-crawler"
+  description   = "Crawler to crawl the individual curs in the cur bucket"
+  role          = aws_iam_role.cur_crawler_role.arn
+
+  s3_target {
+    path            = "s3://${aws_s3_bucket.central_cur_bucket.id}"
+    exclusions      = var.crawlerExclusions
+  }
+/*
+  recrawl_policy {
+    recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+  }
+*/
+  schema_change_policy {
+    delete_behavior = "DELETE_FROM_DATABASE"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  configuration = jsonencode({
+    Version = 1
+    Grouping = {
+      TableLevelConfiguration = 4
+    }
+    CrawlerOutput = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+    }
+  })
+
+  tags = {
+    CreatedFor  = "CUR Scheam Crawling"
+  }
+}
+
+resource "aws_glue_crawler" "catagories" {
+  database_name = aws_glue_catalog_database.catagories.id
+  name          = "catagory-cur-crawler"
+  description   = "Crawler to crawl the catagories defined by the prefix of the curs in the cur bucket"
+  role          = aws_iam_role.cur_crawler_role.arn
+
+  s3_target {
+    path            = "s3://${aws_s3_bucket.central_cur_bucket.id}"
+    exclusions      = var.crawlerExclusions
+  }
+/*
+  recrawl_policy {
+    recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+  }
+*/
+  schema_change_policy {
+    delete_behavior = "DELETE_FROM_DATABASE"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+  
+  configuration = jsonencode({
+    Version = 1
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
+      TableLevelConfiguration = 2
+    }
+    CrawlerOutput = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+    }
+  })
+
+  tags = {
+    CreatedFor  = "CUR Scheam Crawling"
+  }
+}
+
+resource "aws_glue_crawler" "global" {
+  database_name = aws_glue_catalog_database.global.id
+  name          = "global-cur-crawler"
+  description   = "Crawler to crawl the all the curs in the cur bucket"
+  role          = aws_iam_role.cur_crawler_role.arn
+
+  s3_target {
+    path            = "s3://${aws_s3_bucket.central_cur_bucket.id}"
+    exclusions      = var.crawlerExclusions
+  }
+/*
+  recrawl_policy {
+    recrawl_behavior = "CRAWL_NEW_FOLDERS_ONLY"
+  }
+*/
+  schema_change_policy {
+    delete_behavior = "DELETE_FROM_DATABASE"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  configuration = jsonencode({
+    Version = 1
+    Grouping = {
+      TableGroupingPolicy = "CombineCompatibleSchemas"
+      TableLevelConfiguration = 1
+    }
+    CrawlerOutput = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+      Tables = { AddOrUpdateBehavior = "MergeNewColumns" }
+    }
+  })
+
+  tags = {
+    CreatedFor  = "CUR Scheam Crawling"
+  }
+}
+
+resource "aws_iam_role" "cur_crawler_role" {
+  name = "CurCrawlerRole"
+  description = "Allows glue crawlers access"
+
+  assume_role_policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+            "Service": "glue.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    CreatedFor  = "CUR Scheam Crawling"
+  }
+}
+
+resource "aws_iam_policy" "cur_bucket_access" {
+  name = "CurBucketAccess"
+  description = "Gives apropriate permisions for replication"
+
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:GetObject",
+          "s3:PutObject"
+        ],
+        "Resource": [
+          "arn:aws:s3:::${aws_s3_bucket.central_cur_bucket.id}/*"
+        ]
+      }
+    ]
+  })
+
+
+  tags = {
+    CreatedFor  = "CUR Scheam Crawling"
+  }
+
+}
+
+resource "aws_iam_role_policy_attachment" "gluepol_attach_curcrawlerrole" {
+  role       = aws_iam_role.cur_crawler_role.name
+  policy_arn = aws_iam_policy.cur_bucket_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "allowcurbuck_attach_curcrawlerrole" {
+  role       = aws_iam_role.cur_crawler_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+}
+

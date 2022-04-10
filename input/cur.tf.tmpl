@@ -1,0 +1,41 @@
+resource "aws_cur_report_definition" "central_cur" {
+  report_name                = {{ strings.ToLower .logprofile.profile | strings.KebabCase | strings.Quote }}
+  time_unit                  = "HOURLY"
+  format                     = "Parquet"
+  compression                = "Parquet"
+  additional_schema_elements = ["RESOURCES"]
+  s3_bucket                  = aws_s3_bucket.central_cur_bucket.id
+  s3_prefix                  = var.curPrefix
+  s3_region                  = var.region
+  additional_artifacts       = ["ATHENA"]
+  refresh_closed_reports     = "true"
+  report_versioning          = "OVERWRITE_REPORT"
+
+  provider                   = aws.log_cur
+  depends_on = [aws_s3_bucket_policy.central_cur_policy]
+}
+
+{{ range $value := .members.profiles }}
+{{- $sk := (strings.SnakeCase $value | strings.ToLower) }}
+{{- $kk := (strings.KebabCase $value | strings.ToLower) }}
+{{- $prov := (printf "%s%s" $sk "_provider") }}
+{{- $cur := (printf "%s%s" "cur_" $sk) }}
+{{- $curbuck := (printf "%s%s" "cur_bucket_" $sk) }}
+{{- $buckpol := (printf "%s%s" "cur_bucketpolicy_" $sk) }}
+resource "aws_cur_report_definition" {{ strings.Quote $cur }} {
+  report_name                = {{ strings.Quote $kk }}
+  time_unit                  = "HOURLY"
+  format                     = "Parquet"
+  compression                = "Parquet"
+  additional_schema_elements = ["RESOURCES"]
+  s3_bucket                  = aws_s3_bucket.{{print $curbuck}}.id
+  s3_prefix                  = var.curPrefix
+  s3_region                  = var.region
+  additional_artifacts       = ["ATHENA"]
+  refresh_closed_reports     = "true"
+  report_versioning          = "OVERWRITE_REPORT"
+
+  provider = aws.{{ printf "%s%s" $prov "_cur" }}
+  depends_on = [aws_s3_bucket_policy.{{ print $buckpol }}]
+}
+{{ end }}

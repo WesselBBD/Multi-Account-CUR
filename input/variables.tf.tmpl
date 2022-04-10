@@ -1,0 +1,74 @@
+# Region
+
+variable "region" {
+  type        = string
+  description = "Region to work in. This is the region where all the cur buckets will be stored. ENSURE: Cost, Opt-in and Conveince"
+  default     = "eu-west-1"
+}
+
+# Info
+
+variable "logAccountId" {
+  type        = string
+  description = "The log account ID"
+}
+
+# Names and Pre/Postfixes
+
+variable "logBucket" {
+  type        = string
+  description = "The name of the bucket in the logging account where the CUR data will be stored"
+}
+
+variable "spillBucket" {
+  type        = string
+  description = "The name of the spill bucket in the logging account"
+}
+
+variable "curPrefix" {
+  type        = string
+  description = "The Global Prefix for the CUR to export to"
+  default     = "CURs"
+}
+
+variable "curMemberPostfix" {
+  type        = string
+  description = "The global post fix applied to member CUR buckets"
+  default     = "-ephemeral"
+}
+
+# Tags
+
+variable "defaultTags" {
+  description = "Tags to set for all resources in provider"
+  type        = map(string)
+  default     = {
+    CreatedBy = {{ strings.Quote .general.createdByTag}}
+  }
+}
+
+variable "defaultIgnoredTags" {
+  description = "Tags to set for all resources in provider"
+  type        = list(string)
+  default     = [
+    "CreatedAt"
+  ]
+}
+
+# Glue
+
+variable "crawlerExclusions" {
+  description = "List of S3 exclusions for the glue crawlers"
+  type        = list(string)
+  default     = [
+    "**.zip",
+    "**.gz",
+    "**.txt",
+    "**.sql",
+    "**.json",
+    "**.jsn",
+    "**.yaml",
+    "**.yml",
+    "**/cost_and_usage_data_status/**",
+  ]
+}

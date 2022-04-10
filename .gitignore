@@ -1,0 +1,10 @@
+output/*
+
+*.tfstate
+
+logprofile.yaml
+memberprofiles.yaml
+generalconfig.yaml
+
+*.backup
+*.tmp
