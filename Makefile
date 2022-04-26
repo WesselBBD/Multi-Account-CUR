@@ -17,7 +17,7 @@ run:
 	  terraform apply -var-file="values.tfvars"
 	
 init:
-	@mkdir ./output
-	@yq -n '.memberprofiles[0] ="memberacount1" | .memberprofiles[1] = "memberacount2" ' > $(MEMBERPROFILES)
-	@yq -n '.profile = "logprofile" | .accountid[1] = "000000000000"' > $(LOGPROFILE)
-	@yq -n '.createdByTag = "someone" | region = "eu-west-1" | logBucket = "cur-central-1234" | spillBucket = "athena-spill-1234" | curMemberPostfix = "-1234"' > $(GENERALCONFIG)
+	@mkdir -p ./output;
+	@yq -n '.memberprofiles[0] ="memberacount1" | .memberprofiles[1] = "memberacount2" ' > $(MEMBERPROFILES);
+	@yq -n '.profile = "logprofile" | .accountid = "000000000000"' > $(LOGPROFILE);
+	@yq -n '.createdByTag = "someone" | .region = "eu-west-1" | .logBucket = "cur-central-1234" | .spillBucket = "athena-spill-1234" | .curMemberPostfix = "-1234"' > $(GENERALCONFIG);
