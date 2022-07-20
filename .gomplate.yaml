@@ -1,19 +1,7 @@
-inputFiles:
-  - ./input/providers.tf.tmpl
-  - ./input/s3.tf.tmpl
-  - ./input/cur.tf.tmpl
-  - ./input/glue.tf.tmpl
-  - ./input/athena.tf.tmpl
-  - ./input/variables.tf.tmpl
-  - ./input/values.tfvars.tmpl
-outputFiles:
-  - ./output/providers.tf
-  - ./output/s3.tf
-  - ./output/cur.tf
-  - ./output/glue.tf
-  - ./output/athena.tf
-  - ./output/variables.tf
-  - ./output/values.tfvars
+inputDir: input/
+
+outputMap: |
+  ./output/{{ .in | strings.ReplaceAll ".tmpl" "" }}
 
 context:
   logprofile:
