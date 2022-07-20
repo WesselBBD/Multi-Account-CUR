@@ -3,7 +3,6 @@ resource "aws_s3_bucket" "central_cur_bucket" {
 
   tags = {
     CreatedFor  = "CUR Logging"
-    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
   }
 }
 
@@ -115,6 +114,22 @@ resource "aws_s3_bucket_versioning" "central_cur_bucket_versioning" {
   }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "central_cur_bucket_lifecycle" {
+  bucket = aws_s3_bucket.central_cur_bucket.id
+
+  rule {
+    id = "6-month-rule"
+
+    filter {}
+
+    expiration {
+      days = 180
+    }
+
+    status = "Enabled"
+  }
+}
+
 
 
 {{ range $value := .members.profiles }}
@@ -129,6 +144,7 @@ resource "aws_s3_bucket_versioning" "central_cur_bucket_versioning" {
 {{- $repatch := (printf "%s%s" "replication_atachment_" $sk) }}
 {{- $repid := (printf "%s%s" $sk "-cur-replication-rule") }}
 {{- $currep := (printf "%s%s" "cur_replication_" $sk) }}
+{{- $curlife := (printf "%s%s" "cur_lifecycle_" $sk) }}
 resource "aws_s3_bucket" {{ strings.Quote $curbuck }} {
   bucket = "cur-{{ strings.ToLower $value | strings.KebabCase }}${var.curMemberPostfix}"
 
@@ -136,7 +152,6 @@ resource "aws_s3_bucket" {{ strings.Quote $curbuck }} {
 
   tags = {
     CreatedFor  = "CUR Logging"
-    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
   }
 }
 
@@ -213,7 +228,6 @@ resource "aws_iam_role" {{ strings.Quote $reprole }} {
 
   tags = {
     CreatedFor  = "CUR Logging Replication"
-    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
   }
 
 }
@@ -263,7 +277,6 @@ resource "aws_iam_policy" {{ strings.Quote $reppol }} {
 
   tags = {
     CreatedFor  = "CUR Logging"
-    Warning     = "Do not touch. I know how to read AWS event logs. I will find you."
   }
 
 }
@@ -298,4 +311,26 @@ resource "aws_s3_bucket_replication_configuration" {{ strings.Quote $currep }} {
     }
   }
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" {{ strings.Quote $curlife }} {
+  provider = aws.{{ print $prov }}
+
+  # Must have bucket versioning enabled first
+  depends_on = [aws_s3_bucket_versioning.{{ print $curver }}]
+
+  bucket = aws_s3_bucket.{{ print $curbuck }}.id
+
+  rule {
+    id = "3-month-rule"
+
+    filter {}
+
+    expiration {
+      days = 90
+    }
+
+    status = "Enabled"
+  }
+}
+
 {{ end }}
