@@ -141,9 +141,8 @@ Read it (especially the bottom) for information on how to filter the data once y
 - Investigate static schema derived from the CUR SPEC
 - Investigate cost performance / discoverability and maybe do the SNS->SQS thing for crawlers
 
-- Enable Bucket, Replication and Athena Metrics
+- Enable Bucket Metrics, Replication Metrics and Athena Metrics
 
 - Add prefix 'filter' to replication rules on the cur buckets (probably a good idea)
-- Add lifecycle policies to the member cur buckets (should be 2 months minimum)
 - Move to Terragrunt...
 - ...if not, figure out how to do gomplate templating correctly across templates
